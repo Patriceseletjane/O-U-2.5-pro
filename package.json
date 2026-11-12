@@ -1,8 +1,0 @@
-{
-  "name": "ou25-pro-android",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "web": "python3 -m http.server 8080 -d www"
-  }
-}
