@@ -11,162 +11,323 @@ import android.widget.*;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+
     LinearLayout root;
-    EditText matches;
-    EditText history;
     EditText bankroll;
+    EditText history;
+    EditText matches;
     TextView result;
+    TextView confidence;
+    TextView stake;
+
+    int BG = Color.rgb(7, 17, 31);
+    int CARD = Color.rgb(15, 29, 48);
+    int TEXT = Color.WHITE;
+    int MUTED = Color.rgb(150, 170, 195);
 
     @Override
-    public void onCreate(Bundle b) {
-        super.onCreate(b);
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(28, 34, 28, 28);
-        root.setBackgroundColor(Color.rgb(7, 17, 31));
+        root.setPadding(28, 35, 28, 28);
+        root.setBackgroundColor(BG);
 
-        TextView title = new TextView(this);
-        title.setText("O/U 2.5 PRO");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(28);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(BG);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(0, 10, 0, 30);
+
+        TextView title = text("O/U 2.5 PRO", 30, TEXT, true);
         title.setGravity(Gravity.CENTER);
-        root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(title);
 
-        TextView sub = new TextView(this);
-        sub.setText("OVER 2.5 + UNDER 2.5 Decision Support");
-        sub.setTextColor(Color.rgb(145, 166, 194));
-        sub.setTextSize(16);
-        sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, 8, 0, 18);
-        root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        TextView subtitle = text(
+                "OVER 2.5 + UNDER 2.5 DECISION SUPPORT",
+                15,
+                MUTED,
+                true
+        );
+        subtitle.setGravity(Gravity.CENTER);
+        content.addView(subtitle);
 
-        bankroll = field("Bankroll (₦)", "");
-        root.addView(bankroll);
+        addSpace(content, 25);
 
-        history = field("Previous total goals, e.g. 3,1,4,2,5,3,2,1,4,3", "");
-        root.addView(history);
+        content.addView(sectionTitle("BANKROLL"));
 
-        matches = new EditText(this);
-        matches.setHint("Match | Over odds | Under odds\nMatch 1 | 1.80 | 1.90\nMatch 2 | 1.70 | 2.05");
-        matches.setHintTextColor(Color.rgb(130, 150, 178));
-        matches.setTextColor(Color.WHITE);
-        matches.setTextSize(15);
+        bankroll = input("Enter bankroll (₦)");
+        content.addView(bankroll);
+
+        addSpace(content, 18);
+
+        content.addView(sectionTitle("PREVIOUS TOTAL GOALS"));
+
+        history = input(
+                "Example: 3,1,4,2,5,3,2,1,4,3"
+        );
+        content.addView(history);
+
+        addSpace(content, 18);
+
+        content.addView(sectionTitle("MATCHES + ODDS"));
+
+        matches = input(
+                "Match 1 | 1.80 | 1.90\n" +
+                "Match 2 | 1.70 | 2.05\n" +
+                "Match 3 | 1.85 | 1.88"
+        );
+        matches.setMinLines(5);
         matches.setGravity(Gravity.TOP);
-        matches.setMinLines(6);
-        matches.setPadding(12, 12, 12, 12);
-        root.addView(matches, new LinearLayout.LayoutParams(-1, 0, 1));
+        content.addView(matches);
+
+        addSpace(content, 25);
 
         Button analyze = new Button(this);
         analyze.setText("ANALYZE O/U 2.5");
-        analyze.setTextSize(15);
-        analyze.setOnClickListener(v -> analyzeMatches());
-        root.addView(analyze, new LinearLayout.LayoutParams(-1, -2));
+        analyze.setTextColor(TEXT);
+        analyze.setTextSize(16);
+        analyze.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        analyze.setBackgroundColor(Color.rgb(35, 95, 170));
 
-        result = new TextView(this);
-        result.setTextColor(Color.WHITE);
-        result.setTextSize(16);
-        result.setPadding(0, 18, 0, 0);
-        root.addView(result, new LinearLayout.LayoutParams(-1, -2));
+        analyze.setOnClickListener(v -> analyzeMatches());
+
+        content.addView(analyze);
+
+        addSpace(content, 25);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(25, 25, 25, 25);
+        card.setBackgroundColor(CARD);
+
+        TextView predictionLabel =
+                text("PRIMARY SIGNAL", 13, MUTED, true);
+        card.addView(predictionLabel);
+
+        result = text("WAITING FOR ANALYSIS", 27, TEXT, true);
+        result.setGravity(Gravity.CENTER);
+        card.addView(result);
+
+        addSpace(card, 15);
+
+        confidence =
+                text("Confidence: --", 17, TEXT, false);
+        confidence.setGravity(Gravity.CENTER);
+        card.addView(confidence);
+
+        addSpace(card, 10);
+
+        stake =
+                text("Recommended stake: --", 16, MUTED, false);
+        stake.setGravity(Gravity.CENTER);
+        card.addView(stake);
+
+        content.addView(card);
+
+        addSpace(content, 20);
+
+        TextView warning = text(
+                "⚠ Decision support only. No prediction can guarantee a winning result.",
+                13,
+                MUTED,
+                false
+        );
+        warning.setGravity(Gravity.CENTER);
+        content.addView(warning);
+
+        scroll.addView(content);
+        root.addView(scroll);
 
         setContentView(root);
     }
 
-    EditText field(String hint, String value) {
-        EditText e = new EditText(this);
-        e.setHint(hint);
-        e.setText(value);
-        e.setTextColor(Color.WHITE);
-        e.setHintTextColor(Color.rgb(130, 150, 178));
-        e.setPadding(12, 12, 12, 12);
-        return e;
-    }
-
     void analyzeMatches() {
-        String raw = matches.getText().toString().trim();
-        if (raw.isEmpty()) {
-            result.setText("Enter at least one match using:\nMatch | Over odds | Under odds");
+
+        String historyText = history.getText().toString().trim();
+        String matchText = matches.getText().toString().trim();
+        String bankrollText = bankroll.getText().toString().trim();
+
+        if (matchText.isEmpty()) {
+            result.setText("ENTER MATCH DATA");
+            confidence.setText("Confidence: --");
+            stake.setText("Recommended stake: --");
             return;
         }
 
-        double avgGoals = historyAverage();
-        String[] lines = raw.split("\\r?\\n");
-        StringBuilder out = new StringBuilder();
-        out.append("PREDICTIONS\n\n");
+        int total = 0;
+        int count = 0;
 
-        int valid = 0;
-        for (String line : lines) {
-            String[] p = line.split("\\|");
-            if (p.length < 3) continue;
+        if (!historyText.isEmpty()) {
 
-            try {
-                String match = p[0].trim();
-                double overOdds = Double.parseDouble(p[1].trim());
-                double underOdds = Double.parseDouble(p[2].trim());
+            String[] numbers = historyText.split(",");
 
-                double overScore = 100.0 / overOdds;
-                double underScore = 100.0 / underOdds;
-
-                // Small history adjustment. This is a heuristic, not a guarantee.
-                if (avgGoals > 2.5) {
-                    overScore += Math.min(8.0, (avgGoals - 2.5) * 4.0);
-                } else if (avgGoals < 2.5) {
-                    underScore += Math.min(8.0, (2.5 - avgGoals) * 4.0);
+            for (String n : numbers) {
+                try {
+                    total += Integer.parseInt(n.trim());
+                    count++;
+                } catch (Exception ignored) {
                 }
-
-                double total = overScore + underScore;
-                double overPct = total > 0 ? overScore / total * 100.0 : 50.0;
-                double underPct = total > 0 ? underScore / total * 100.0 : 50.0;
-                double gap = Math.abs(overPct - underPct);
-
-                String pick;
-                if (gap >= 14.0) {
-                    pick = overPct > underPct ? "OVER 2.5" : "UNDER 2.5";
-                } else {
-                    pick = "WAIT";
-                }
-
-                out.append(match).append("\n");
-                out.append(String.format(Locale.US,
-                        "OVER: %.1f%%   UNDER: %.1f%%\nSIGNAL: %s\n\n",
-                        overPct, underPct, pick));
-                valid++;
-            } catch (Exception ignored) {
-                // Ignore malformed rows and continue.
             }
         }
 
-        if (valid == 0) {
-            out.append("No valid matches found.\n");
-            out.append("Use one match per line, for example:\n");
-            out.append("Match 1 | 1.80 | 1.90");
+        double average = count > 0
+                ? (double) total / count
+                : 2.5;
+
+        double overScore = 50;
+
+        if (average > 2.5) {
+            overScore += Math.min((average - 2.5) * 18, 25);
         } else {
-            out.append("History average goals: ")
-               .append(String.format(Locale.US, "%.2f", avgGoals))
-               .append("\n");
-            out.append("Heuristic only — not a guaranteed prediction.");
+            overScore -= Math.min((2.5 - average) * 18, 25);
         }
 
-        result.setText(out.toString());
+        String[] matchLines = matchText.split("\\n");
+
+        double oddsBonus = 0;
+
+        for (String line : matchLines) {
+
+            String[] parts = line.split("\\|");
+
+            if (parts.length >= 3) {
+
+                try {
+
+                    double overOdds =
+                            Double.parseDouble(parts[1].trim());
+
+                    double underOdds =
+                            Double.parseDouble(parts[2].trim());
+
+                    if (overOdds < underOdds) {
+                        oddsBonus += 3;
+                    } else {
+                        oddsBonus -= 3;
+                    }
+
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        overScore += Math.min(oddsBonus, 15);
+        overScore = Math.max(5, Math.min(95, overScore));
+
+        double underScore = 100 - overScore;
+
+        String signal;
+
+        if (overScore >= 65) {
+            signal = "OVER 2.5";
+        } else if (underScore >= 65) {
+            signal = "UNDER 2.5";
+        } else {
+            signal = "WAIT";
+        }
+
+        double confidenceValue =
+                Math.max(overScore, underScore);
+
+        result.setText(signal);
+
+        confidence.setText(
+                String.format(
+                        Locale.US,
+                        "Confidence: %.0f%%",
+                        confidenceValue
+                )
+        );
+
+        if (!bankrollText.isEmpty()) {
+
+            try {
+
+                double bank =
+                        Double.parseDouble(
+                                bankrollText.replace(",", "")
+                        );
+
+                double recommended =
+                        bank * 0.05;
+
+                stake.setText(
+                        String.format(
+                                Locale.US,
+                                "Recommended stake: ₦%.2f",
+                                recommended
+                        )
+                );
+
+            } catch (Exception e) {
+
+                stake.setText(
+                        "Recommended stake: Check bankroll"
+                );
+            }
+
+        } else {
+
+            stake.setText(
+                    "Recommended stake: Enter bankroll"
+            );
+        }
     }
 
-    double historyAverage() {
-        String h = history.getText().toString().trim();
-        if (h.isEmpty()) return 2.5;
+    TextView sectionTitle(String value) {
+        return text(value, 13, MUTED, true);
+    }
 
-        String[] values = h.split("[,\\s]+");
-        double total = 0.0;
-        int n = 0;
+    EditText input(String hint) {
 
-        for (String x : values) {
-            try {
-                total += Double.parseDouble(x);
-                n++;
-            } catch (Exception ignored) {
-            }
+        EditText e = new EditText(this);
+
+        e.setHint(hint);
+        e.setHintTextColor(Color.rgb(120, 140, 165));
+        e.setTextColor(TEXT);
+        e.setTextSize(16);
+        e.setPadding(20, 18, 20, 18);
+        e.setBackgroundColor(CARD);
+
+        return e;
+    }
+
+    TextView text(
+            String value,
+            float size,
+            int color,
+            boolean bold
+    ) {
+
+        TextView t = new TextView(this);
+
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+
+        if (bold) {
+            t.setTypeface(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+            );
         }
 
-        return n > 0 ? total / n : 2.5;
+        return t;
+    }
+
+    void addSpace(LinearLayout layout, int pixels) {
+
+        Space space = new Space(this);
+
+        layout.addView(
+                space,
+                new LinearLayout.LayoutParams(
+                        1,
+                        pixels
+                )
+        );
     }
 }
