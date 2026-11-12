@@ -3,53 +3,73 @@ package com.ou25pro.app;
 import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.*;
+
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    EditText history, matches;
+    LinearLayout root;
+    EditText matches;
+    EditText history;
+    EditText bankroll;
     TextView result;
 
-    @Override public void onCreate(Bundle b) {
+    @Override
+    public void onCreate(Bundle b) {
         super.onCreate(b);
-        LinearLayout root = new LinearLayout(this);
+
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(28, 34, 28, 28);
-        root.setBackgroundColor(Color.rgb(7,17,31));
+        root.setBackgroundColor(Color.rgb(7, 17, 31));
 
         TextView title = new TextView(this);
         title.setText("O/U 2.5 PRO");
         title.setTextColor(Color.WHITE);
         title.setTextSize(28);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
-        root.addView(title);
+        root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView sub = new TextView(this);
         sub.setText("OVER 2.5 + UNDER 2.5 Decision Support");
-        sub.setTextColor(Color.rgb(145,165,190));
+        sub.setTextColor(Color.rgb(145, 166, 194));
+        sub.setTextSize(16);
         sub.setGravity(Gravity.CENTER);
-        root.addView(sub);
+        sub.setPadding(0, 8, 0, 18);
+        root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
 
-        history = field("Recent total goals (e.g. 3,1,4,2,5)", "3,1,4,2,5,3,2,1,4,3");
+        bankroll = field("Bankroll (₦)", "");
+        root.addView(bankroll);
+
+        history = field("Previous total goals, e.g. 3,1,4,2,5,3,2,1,4,3", "");
         root.addView(history);
 
-        matches = field("Match | Over odds | Under odds", "");
-        matches.setMinLines(5);
+        matches = new EditText(this);
+        matches.setHint("Match | Over odds | Under odds\nMatch 1 | 1.80 | 1.90\nMatch 2 | 1.70 | 2.05");
+        matches.setHintTextColor(Color.rgb(130, 150, 178));
+        matches.setTextColor(Color.WHITE);
+        matches.setTextSize(15);
         matches.setGravity(Gravity.TOP);
-        root.addView(matches);
+        matches.setMinLines(6);
+        matches.setPadding(12, 12, 12, 12);
+        root.addView(matches, new LinearLayout.LayoutParams(-1, 0, 1));
 
         Button analyze = new Button(this);
         analyze.setText("ANALYZE O/U 2.5");
-        root.addView(analyze);
+        analyze.setTextSize(15);
+        analyze.setOnClickListener(v -> analyzeMatches());
+        root.addView(analyze, new LinearLayout.LayoutParams(-1, -2));
 
         result = new TextView(this);
         result.setTextColor(Color.WHITE);
-        result.setTextSize(17);
-        result.setPadding(0, 22, 0, 0);
-        root.addView(result);
+        result.setTextSize(16);
+        result.setPadding(0, 18, 0, 0);
+        root.addView(result, new LinearLayout.LayoutParams(-1, -2));
 
-        analyze.setOnClickListener(v -> analyze());
         setContentView(root);
     }
 
@@ -58,68 +78,95 @@ public class MainActivity extends Activity {
         e.setHint(hint);
         e.setText(value);
         e.setTextColor(Color.WHITE);
-        e.setHintTextColor(Color.rgb(120,140,160));
-        e.setPadding(10, 10, 10, 10);
+        e.setHintTextColor(Color.rgb(130, 150, 178));
+        e.setPadding(12, 12, 12, 12);
         return e;
     }
 
-    void analyze() {
-        double avg = 2.5;
-        String[] vals = history.getText().toString().split(",");
-        double total = 0; int count = 0;
-        for (String x : vals) {
-            try { total += Double.parseDouble(x.trim()); count++; }
-            catch (Exception ignored) {}
-        }
-        if (count > 0) avg = total / count;
-
-        double overBase = 50 + ((avg - 2.5) * 20);
-        overBase = Math.max(5, Math.min(95, overBase));
-
-        StringBuilder out = new StringBuilder();
-        out.append("PREDICTIONS\n\n");
-
+    void analyzeMatches() {
         String raw = matches.getText().toString().trim();
         if (raw.isEmpty()) {
-            out.append("Enter at least one match in this format:\n");
-            out.append("Team A vs Team B | 1.70 | 2.10\n\n");
-            out.append("Average goals: ")
-               .append(String.format(Locale.US, "%.2f", avg));
-            result.setText(out.toString());
+            result.setText("Enter at least one match using:\nMatch | Over odds | Under odds");
             return;
         }
 
-        for (String line : raw.split("\\n")) {
+        double avgGoals = historyAverage();
+        String[] lines = raw.split("\\r?\\n");
+        StringBuilder out = new StringBuilder();
+        out.append("PREDICTIONS\n\n");
+
+        int valid = 0;
+        for (String line : lines) {
             String[] p = line.split("\\|");
             if (p.length < 3) continue;
 
-            double oo, uo;
             try {
-                oo = Double.parseDouble(p[1].trim());
-                uo = Double.parseDouble(p[2].trim());
-            } catch (Exception e) {
-                continue;
+                String match = p[0].trim();
+                double overOdds = Double.parseDouble(p[1].trim());
+                double underOdds = Double.parseDouble(p[2].trim());
+
+                double overScore = 100.0 / overOdds;
+                double underScore = 100.0 / underOdds;
+
+                // Small history adjustment. This is a heuristic, not a guarantee.
+                if (avgGoals > 2.5) {
+                    overScore += Math.min(8.0, (avgGoals - 2.5) * 4.0);
+                } else if (avgGoals < 2.5) {
+                    underScore += Math.min(8.0, (2.5 - avgGoals) * 4.0);
+                }
+
+                double total = overScore + underScore;
+                double overPct = total > 0 ? overScore / total * 100.0 : 50.0;
+                double underPct = total > 0 ? underScore / total * 100.0 : 50.0;
+                double gap = Math.abs(overPct - underPct);
+
+                String pick;
+                if (gap >= 14.0) {
+                    pick = overPct > underPct ? "OVER 2.5" : "UNDER 2.5";
+                } else {
+                    pick = "WAIT";
+                }
+
+                out.append(match).append("\n");
+                out.append(String.format(Locale.US,
+                        "OVER: %.1f%%   UNDER: %.1f%%\nSIGNAL: %s\n\n",
+                        overPct, underPct, pick));
+                valid++;
+            } catch (Exception ignored) {
+                // Ignore malformed rows and continue.
             }
-
-            double marketOver = (1.0 / oo) / ((1.0 / oo) + (1.0 / uo)) * 100.0;
-            double over = (overBase * 0.65) + (marketOver * 0.35);
-            over = Math.max(1, Math.min(99, over));
-            double under = 100 - over;
-
-            String signal = "WAIT";
-            if (over >= 60) signal = "OVER 2.5";
-            else if (under >= 60) signal = "UNDER 2.5";
-
-            out.append(p[0].trim()).append("\n");
-            out.append("OVER 2.5: ").append(Math.round(over)).append("%\n");
-            out.append("UNDER 2.5: ").append(Math.round(under)).append("%\n");
-            out.append("SIGNAL: ").append(signal).append("\n\n");
         }
 
-        out.append("Average goals: ")
-           .append(String.format(Locale.US, "%.2f", avg))
-           .append("\n\nDecision-support only; no guaranteed outcome.");
+        if (valid == 0) {
+            out.append("No valid matches found.\n");
+            out.append("Use one match per line, for example:\n");
+            out.append("Match 1 | 1.80 | 1.90");
+        } else {
+            out.append("History average goals: ")
+               .append(String.format(Locale.US, "%.2f", avgGoals))
+               .append("\n");
+            out.append("Heuristic only — not a guaranteed prediction.");
+        }
 
         result.setText(out.toString());
+    }
+
+    double historyAverage() {
+        String h = history.getText().toString().trim();
+        if (h.isEmpty()) return 2.5;
+
+        String[] values = h.split("[,\\s]+");
+        double total = 0.0;
+        int n = 0;
+
+        for (String x : values) {
+            try {
+                total += Double.parseDouble(x);
+                n++;
+            } catch (Exception ignored) {
+            }
+        }
+
+        return n > 0 ? total / n : 2.5;
     }
 }
