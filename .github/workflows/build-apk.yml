@@ -1,4 +1,4 @@
-name: Build O/U 2.5 Pro APK
+name: Build O-U 2.5 Pro APK
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java
@@ -20,14 +20,251 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Build APK
+      - name: Create Android project
+        run: |
+          mkdir -p android/app/src/main/java/com/ou25pro/app
+          mkdir -p android/app/src/main/res/values
+
+          cat > android/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "OU25Pro"
+          include(":app")
+          EOF
+
+          cat > android/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > android/app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.ou25pro.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.ou25pro.app'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme"
+                  parent="android:style/Theme.Material.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#168cff</item>
+                  <item name="android:statusBarColor">#07111f</item>
+                  <item name="android:navigationBarColor">#07111f</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > android/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="O/U 2.5 Pro">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > android/app/src/main/java/com/ou25pro/app/MainActivity.java <<'EOF'
+          package com.ou25pro.app;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.Gravity;
+          import android.widget.*;
+          import android.view.View;
+
+          public class MainActivity extends Activity {
+
+              LinearLayout root;
+              EditText matches;
+              EditText history;
+              EditText bankroll;
+
+              @Override
+              public void onCreate(Bundle b) {
+                  super.onCreate(b);
+
+                  root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(32, 40, 32, 32);
+                  root.setBackgroundColor(Color.rgb(7,17,31));
+
+                  TextView title = new TextView(this);
+                  title.setText("O/U 2.5 PRO");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(26);
+                  title.setGravity(Gravity.CENTER);
+                  title.setPadding(0,0,0,12);
+                  root.addView(title);
+
+                  TextView sub = new TextView(this);
+                  sub.setText("OVER 2.5 + UNDER 2.5 Decision Support");
+                  sub.setTextColor(Color.rgb(142,164,191));
+                  sub.setGravity(Gravity.CENTER);
+                  root.addView(sub);
+
+                  bankroll = field("Bankroll (₦)", "10000");
+                  root.addView(bankroll);
+
+                  history = field("Recent total goals", "3,1,4,2,5,3,2,1,4,3");
+                  root.addView(history);
+
+                  matches = new EditText(this);
+                  matches.setHint("Match | Over odds | Under odds");
+                  matches.setHintTextColor(Color.rgb(120,140,160));
+                  matches.setTextColor(Color.WHITE);
+                  matches.setMinLines(5);
+                  matches.setGravity(Gravity.TOP);
+                  root.addView(matches);
+
+                  Button analyze = new Button(this);
+                  analyze.setText("ANALYZE O/U 2.5");
+                  root.addView(analyze);
+
+                  TextView result = new TextView(this);
+                  result.setTextColor(Color.WHITE);
+                  result.setTextSize(16);
+                  result.setPadding(0,24,0,0);
+                  root.addView(result);
+
+                  analyze.setOnClickListener(v ->
+                      analyzeMatches(result)
+                  );
+
+                  setContentView(root);
+              }
+
+              EditText field(String hint, String value) {
+                  EditText e = new EditText(this);
+                  e.setHint(hint);
+                  e.setText(value);
+                  e.setTextColor(Color.WHITE);
+                  e.setHintTextColor(Color.rgb(120,140,160));
+                  e.setPadding(12,12,12,12);
+                  return e;
+              }
+
+              void analyzeMatches(TextView result) {
+                  String[] lines = matches.getText().toString().split("\\n");
+                  String[] h = history.getText().toString().split(",");
+
+                  double avg = 2.5;
+                  if (h.length > 0) {
+                      double total = 0;
+                      int n = 0;
+                      for (String x : h) {
+                          try {
+                              total += Double.parseDouble(x.trim());
+                              n++;
+                          } catch(Exception ignored) {}
+                      }
+                      if (n > 0) avg = total / n;
+                  }
+
+                  StringBuilder out = new StringBuilder();
+                  out.append("PREDICTIONS\\n\\n");
+
+                  for (String line : lines) {
+                      String[] p = line.split("\\\\|");
+                      if (p.length < 3) continue;
+
+                      double overOdds;
+                      double underOdds;
+
+                      try {
+                          overOdds = Double.parseDouble(p[1].trim());
+                          underOdds = Double.parseDouble(p[2].trim());
+                      } catch(Exception e) {
+                          continue;
+                      }
+
+                      double over = 50 + ((avg - 2.5) * 20);
+
+                      double om = (1.0 / overOdds);
+                      double um = (1.0 / underOdds);
+                      double marketOver = om / (om + um) * 100;
+
+                      over = (over * 0.65) + (marketOver * 0.35);
+
+                      if (over < 1) over = 1;
+                      if (over > 99) over = 99;
+
+                      double under = 100 - over;
+                      double gap = Math.abs(over - under);
+
+                      String pick;
+
+                      if (gap >= 14) {
+                          pick = over > under
+                              ? "OVER 2.5"
+                              : "UNDER 2.5";
+                      } else {
+                          pick = "WAIT";
+                      }
+
+                      out.append(p[0].trim())
+                         .append("\\n")
+                         .append("OVER: ")
+                         .append(Math.round(over))
+                         .append("%   UNDER: ")
+                         .append(Math.round(under))
+                         .append("%\\n")
+                         .append("SIGNAL: ")
+                         .append(pick)
+                         .append("\\n\\n");
+                  }
+
+                  result.setText(out.toString());
+              }
+          }
+          EOF
+
+      - name: Build debug APK
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
